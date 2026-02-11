@@ -169,6 +169,22 @@ function! vim_review#cur() abort
   echo empty(l:text) ? "No comment" : ("💬 " . l:text)
 endfunction
 
+function! vim_review#ack() abort
+  if &buftype !=# '' | return | endif
+  call vim_review#sync_store()
+
+  let l:file = s:absfile()
+  let l:lnum = string(line('.'))
+  if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
+    let s:db[l:file][l:lnum] = 'ignore this comment.'
+    call s:save_db_to(s:active_store)
+    call vim_review#refresh_signs()
+    echo "Comment acknowledged"
+  else
+    echo "No comment on this line"
+  endif
+endfunction
+
 function! vim_review#show() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
@@ -181,7 +197,7 @@ function! vim_review#show() abort
           \ 'text': '💬 ' . l:text
           \ })
   endfor
-  call setloclist(0, l:items, 'r', {'title': 'Current File Review Comments'})
+  call setloclist(0, l:items, 'r')
   lopen
 endfunction
 
@@ -198,6 +214,6 @@ function! vim_review#list() abort
             \ })
     endfor
   endfor
-  call setloclist(0, l:items, 'r', {'title': 'Commit Review Comments'})
+  call setloclist(0, l:items, 'r')
   lopen
 endfunction

@@ -2,6 +2,7 @@
 
 Commands:
   :ReviewCommentAdd   Add/edit comment at cursor line
+  :ReviewCommentAck   Acknowledge comment at cursor line (mark ignored)
   :ReviewCommentDel   Delete comment at cursor line
   :ReviewCommentCur   Show comment at cursor line
   :ReviewCommentShow  Show comments for current file (location list)
@@ -9,6 +10,7 @@ Commands:
 
 Default mappings:
   <leader>ca  add/edit
+  <leader>ck  acknowledge
   <leader>cd  delete
   <leader>cs  current line
   <leader>cl  list
