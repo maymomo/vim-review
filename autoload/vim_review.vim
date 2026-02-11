@@ -209,7 +209,7 @@ function! vim_review#ack() abort
   let l:lnum = string(line('.'))
   if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
     let l:text = s:comment_text(s:db[l:file][l:lnum])
-    let s:db[l:file][l:lnum] = {'text': l:text, 'ack': 1}
+    let s:db[l:file][l:lnum] = {'text': l:text, 'ack': 1, 'ai': 'ignore this comment.'}
     call s:save_db_to(s:active_store)
     call vim_review#refresh_signs()
     echo "Comment acknowledged"
