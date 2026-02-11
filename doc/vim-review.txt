@@ -1,0 +1,24 @@
+*v﻿im-review*  Local inline review comments (no integration)
+
+Commands:
+  :ReviewCommentAdd   Add/edit comment at cursor line
+  :ReviewCommentDel   Delete comment at cursor line
+  :ReviewCommentShow  Show comment at cursor line
+  :ReviewCommentList  List comments for current file (location list)
+
+Default mappings:
+  <leader>ca  add/edit
+  <leader>cd  delete
+  <leader>cs  show
+  <leader>cl  list
+
+Storage:
+  If in a git repo:
+    <git-root>/.vim_review/<commit-sha>-comments.json   (if json_encode exists)
+    <git-root>/.vim_review/<commit-sha>-comments.vim    (fallback)
+  Otherwise:
+    <cwd>/.vim_review_comments.json|vim
+
+To disable default mappings:
+  let g:vim_review_no_mappings = 1
+
