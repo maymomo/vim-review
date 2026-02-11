@@ -2,7 +2,7 @@
 
 Commands:
   :ReviewCommentAdd   Add/edit comment at cursor line
-  :ReviewCommentAck   Acknowledge comment at cursor line (mark ignored)
+  :ReviewCommentAck   Acknowledge comment at cursor line (mark ignored, keep text)
   :ReviewCommentDel   Delete comment at cursor line
   :ReviewCommentCur   Show comment at cursor line
   :ReviewCommentShow  Show comments for current file (location list)
@@ -19,6 +19,7 @@ Storage:
   If in a git repo:
     <git-root>/.vim_review/<commit-sha>-comments.json   (if json_encode exists)
     <git-root>/.vim_review/<commit-sha>-comments.vim    (fallback)
+    <git-root>/.vim_review/latest-comments.json|vim      (link to latest active store)
   Otherwise:
     <cwd>/.vim_review_comments.json|vim
 

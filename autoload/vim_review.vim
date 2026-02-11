@@ -9,6 +9,17 @@ sign define ReviewComment text=💬 texthl=WarningMsg
 let s:db = {}            " { abs_file: { lnum: text } }
 let s:active_store = ''  " current store file path
 
+function! s:comment_text(item) abort
+  if type(a:item) == type({})
+    return get(a:item, 'text', '')
+  endif
+  return a:item
+endfunction
+
+function! s:comment_acked(item) abort
+  return type(a:item) == type({}) && get(a:item, 'ack', 0)
+endfunction
+
 function! s:absfile() abort
   return fnamemodify(expand('%:p'), ':p')
 endfunction
@@ -58,6 +69,19 @@ function! s:save_db_to(path) abort
     call writefile([json_encode(s:db)], a:path)
   else
     call writefile([string(s:db)], a:path)
+  endif
+
+  if fnamemodify(l:dir, ':t') ==# '.vim_review'
+    let l:ext = fnamemodify(a:path, ':e')
+    let l:latest = l:dir . '/latest-comments.' . l:ext
+    if has('unix')
+      call system('ln -sfn ' . shellescape(a:path) . ' ' . shellescape(l:latest) . ' 2>/dev/null')
+      if v:shell_error
+        call writefile(readfile(a:path), l:latest)
+      endif
+    else
+      call writefile(readfile(a:path), l:latest)
+    endif
   endif
 endfunction
 
@@ -118,7 +142,10 @@ function! vim_review#refresh_signs() abort
   if empty(l:file) | return | endif
   if !has_key(s:db, l:file) | return | endif
 
-  for l:ln in keys(s:db[l:file])
+  for [l:ln, l:item] in items(s:db[l:file])
+    if s:comment_acked(l:item)
+      continue
+    endif
     call s:place_sign(l:buf, str2nr(l:ln))
   endfor
 endfunction
@@ -135,7 +162,7 @@ function! vim_review#add() abort
     let s:db[l:file] = {}
   endif
 
-  let l:old = get(s:db[l:file], l:lnum, '')
+  let l:old = s:comment_text(get(s:db[l:file], l:lnum, ''))
   let l:text = input('💬 Comment: ', l:old)
   if empty(l:text) | echo "Cancelled" | return | endif
 
@@ -165,8 +192,13 @@ function! vim_review#cur() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
   let l:lnum = string(line('.'))
-  let l:text = get(get(s:db, l:file, {}), l:lnum, '')
-  echo empty(l:text) ? "No comment" : ("💬 " . l:text)
+  let l:item = get(get(s:db, l:file, {}), l:lnum, '')
+  let l:text = s:comment_text(l:item)
+  if empty(l:text)
+    echo "No comment"
+    return
+  endif
+  echo s:comment_acked(l:item) ? ("💬 " . l:text . " (acknowledged)") : ("💬 " . l:text)
 endfunction
 
 function! vim_review#ack() abort
@@ -176,7 +208,8 @@ function! vim_review#ack() abort
   let l:file = s:absfile()
   let l:lnum = string(line('.'))
   if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
-    let s:db[l:file][l:lnum] = 'ignore this comment.'
+    let l:text = s:comment_text(s:db[l:file][l:lnum])
+    let s:db[l:file][l:lnum] = {'text': l:text, 'ack': 1}
     call s:save_db_to(s:active_store)
     call vim_review#refresh_signs()
     echo "Comment acknowledged"
@@ -189,12 +222,14 @@ function! vim_review#show() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
   let l:items = []
-  for [l:ln, l:text] in items(get(s:db, l:file, {}))
+  for [l:ln, l:item] in items(get(s:db, l:file, {}))
+    let l:text = s:comment_text(l:item)
+    let l:prefix = s:comment_acked(l:item) ? '✓ ' : ''
     call add(l:items, {
           \ 'bufnr': bufnr('%'),
           \ 'lnum': str2nr(l:ln),
           \ 'col': 1,
-          \ 'text': '💬 ' . l:text
+          \ 'text': l:prefix . '💬 ' . l:text
           \ })
   endfor
   call setloclist(0, l:items, 'r')
@@ -205,12 +240,14 @@ function! vim_review#list() abort
   call vim_review#sync_store()
   let l:items = []
   for [l:file, l:comments] in items(s:db)
-    for [l:ln, l:text] in items(l:comments)
+    for [l:ln, l:item] in items(l:comments)
+      let l:text = s:comment_text(l:item)
+      let l:prefix = s:comment_acked(l:item) ? '✓ ' : ''
       call add(l:items, {
             \ 'filename': l:file,
             \ 'lnum': str2nr(l:ln),
             \ 'col': 1,
-            \ 'text': '💬 ' . l:text
+            \ 'text': l:prefix . '💬 ' . l:text
             \ })
     endfor
   endfor
