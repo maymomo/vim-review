@@ -161,7 +161,7 @@ function! vim_review#del() abort
   endif
 endfunction
 
-function! vim_review#show() abort
+function! vim_review#cur() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
   let l:lnum = string(line('.'))
@@ -169,14 +169,35 @@ function! vim_review#show() abort
   echo empty(l:text) ? "No comment" : ("💬 " . l:text)
 endfunction
 
-function! vim_review#list() abort
+function! vim_review#show() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
   let l:items = []
   for [l:ln, l:text] in items(get(s:db, l:file, {}))
-    call add(l:items, {'bufnr': bufnr('%'), 'lnum': str2nr(l:ln), 'col': 1, 'text': '💬 ' . l:text})
+    call add(l:items, {
+          \ 'bufnr': bufnr('%'),
+          \ 'lnum': str2nr(l:ln),
+          \ 'col': 1,
+          \ 'text': '💬 ' . l:text
+          \ })
   endfor
-  call setloclist(0, l:items, 'r', {'title': 'Local Review Comments'})
+  call setloclist(0, l:items, 'r', {'title': 'Current File Review Comments'})
   lopen
 endfunction
 
+function! vim_review#list() abort
+  call vim_review#sync_store()
+  let l:items = []
+  for [l:file, l:comments] in items(s:db)
+    for [l:ln, l:text] in items(l:comments)
+      call add(l:items, {
+            \ 'filename': l:file,
+            \ 'lnum': str2nr(l:ln),
+            \ 'col': 1,
+            \ 'text': '💬 ' . l:text
+            \ })
+    endfor
+  endfor
+  call setloclist(0, l:items, 'r', {'title': 'Commit Review Comments'})
+  lopen
+endfunction
