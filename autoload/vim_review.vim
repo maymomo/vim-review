@@ -253,7 +253,9 @@ function! vim_review#show() abort
   call vim_review#sync_store()
   let l:file = s:absfile()
   let l:items = []
-  for [l:ln, l:item] in items(get(s:db, l:file, {}))
+  let l:comments = get(s:db, l:file, {})
+  for l:ln in sort(keys(l:comments), 'n')
+    let l:item = l:comments[l:ln]
     let l:text = s:comment_text(l:item)
     let l:prefix = s:comment_acked(l:item) ? '✓ ' : ''
     call add(l:items, {
@@ -270,8 +272,10 @@ endfunction
 function! vim_review#list() abort
   call vim_review#sync_store()
   let l:items = []
-  for [l:file, l:comments] in items(s:db)
-    for [l:ln, l:item] in items(l:comments)
+  for l:file in sort(keys(s:db))
+    let l:comments = s:db[l:file]
+    for l:ln in sort(keys(l:comments), 'n')
+      let l:item = l:comments[l:ln]
       let l:text = s:comment_text(l:item)
       let l:prefix = s:comment_acked(l:item) ? '✓ ' : ''
       call add(l:items, {
