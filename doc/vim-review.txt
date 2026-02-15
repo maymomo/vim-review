@@ -1,4 +1,4 @@
-*v﻿im-review*  Local inline review comments (no integration)
+*vim-review*  Local inline review comments (no integration)
 
 Commands:
   :ReviewCommentAdd   Add/edit comment at cursor line
