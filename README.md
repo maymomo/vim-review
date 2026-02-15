@@ -82,4 +82,5 @@ Acknowledged comments are saved as objects that preserve original text, for exam
 ```bash
 vim -Nu NONE -n +'set rtp+=.' +':runtime plugin/vim_review.vim' +q
 vim -Nu NONE -n +'helptags doc' +q
+vim -Nu NONE -i NONE -n -es -S test/run.vim
 ```
