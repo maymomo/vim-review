@@ -103,8 +103,11 @@ function! s:load_db_from(path) abort
     endtry
   else
     try
-      let s:db = eval(l:content)
-      if type(s:db) != type({})
+      let l:parsed = {}
+      sandbox let l:parsed = eval(l:content)
+      if type(l:parsed) == type({})
+        let s:db = l:parsed
+      else
         let s:db = {}
       endif
     catch
