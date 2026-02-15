@@ -134,9 +134,26 @@ function! s:place_sign(buf, lnum) abort
   execute 'sign place ' . (a:buf*100000 + a:lnum) . ' line=' . a:lnum . ' name=ReviewComment buffer=' . a:buf
 endfunction
 
+function! s:unplace_review_signs(buf) abort
+  if exists('*sign_getplaced')
+    let l:placed = sign_getplaced(a:buf)
+    if !empty(l:placed) && has_key(l:placed[0], 'signs')
+      for l:sign in l:placed[0].signs
+        if get(l:sign, 'name', '') ==# 'ReviewComment'
+          execute 'sign unplace ' . l:sign.id . ' buffer=' . a:buf
+        endif
+      endfor
+    endif
+    return
+  endif
+
+  " Legacy fallback for very old Vim builds without sign_getplaced().
+  execute 'sign unplace * buffer=' . a:buf
+endfunction
+
 function! vim_review#refresh_signs() abort
   let l:buf = bufnr('%')
-  execute 'sign unplace * buffer=' . l:buf
+  call s:unplace_review_signs(l:buf)
 
   let l:file = s:absfile()
   if empty(l:file) | return | endif
