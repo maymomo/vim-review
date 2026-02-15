@@ -8,6 +8,7 @@ sign define ReviewComment text=💬 texthl=WarningMsg
 
 let s:db = {}            " { abs_file: { lnum: text } }
 let s:active_store = ''  " current store file path
+let s:dirty = 0          " in-memory changes not saved yet
 
 function! s:comment_text(item) abort
   if type(a:item) == type({})
@@ -83,11 +84,14 @@ function! s:save_db_to(path) abort
       call writefile(readfile(a:path), l:latest)
     endif
   endif
+
+  let s:dirty = 0
 endfunction
 
 function! s:load_db_from(path) abort
   if !filereadable(a:path)
     let s:db = {}
+    let s:dirty = 0
     return
   endif
 
@@ -114,6 +118,8 @@ function! s:load_db_from(path) abort
       let s:db = {}
     endtry
   endif
+
+  let s:dirty = 0
 endfunction
 
 function! vim_review#sync_store() abort
@@ -127,7 +133,9 @@ function! vim_review#sync_store() abort
   endif
 
   if l:new !=# s:active_store
-    call s:save_db_to(s:active_store)
+    if s:dirty
+      call s:save_db_to(s:active_store)
+    endif
     let s:active_store = l:new
     call s:load_db_from(s:active_store)
   endif
@@ -188,6 +196,7 @@ function! vim_review#add() abort
 
   let s:db[l:file][l:lnum] = l:text
   call s:place_sign(bufnr('%'), str2nr(l:lnum))
+  let s:dirty = 1
   call s:save_db_to(s:active_store)
   echo "Comment saved ✔"
 endfunction
@@ -200,6 +209,7 @@ function! vim_review#del() abort
   let l:lnum = string(line('.'))
   if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
     call remove(s:db[l:file], l:lnum)
+    let s:dirty = 1
     call s:save_db_to(s:active_store)
     call vim_review#refresh_signs()
     echo "Comment deleted"
@@ -230,6 +240,7 @@ function! vim_review#ack() abort
   if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
     let l:text = s:comment_text(s:db[l:file][l:lnum])
     let s:db[l:file][l:lnum] = {'text': l:text, 'ack': 1, 'ai': 'ignore this comment.'}
+    let s:dirty = 1
     call s:save_db_to(s:active_store)
     call vim_review#refresh_signs()
     echo "Comment acknowledged"
