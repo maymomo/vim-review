@@ -33,6 +33,11 @@ runtime plugin/vim_review.vim
 - `:ReviewCommentShow` show comments for current file (location list)
 - `:ReviewCommentList` list comments for current commit store (location list)
 
+## Notes
+
+- `:ReviewCommentAdd`, `:ReviewCommentAck`, and `:ReviewCommentDel` require a named file buffer.
+- If saving the comment store fails, changes remain in memory and an error is shown.
+
 ## Default mappings
 
 - `<leader>ca` add/edit

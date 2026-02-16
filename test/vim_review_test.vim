@@ -254,6 +254,46 @@ function! s:test_sync_store_switch_has_no_empty_writes() abort
   endtry
 endfunction
 
+function! s:test_add_rejects_unnamed_buffer() abort
+  let l:env = s:new_env()
+  try
+    call s:reset_editor()
+    execute 'cd ' . fnameescape(l:env.dir)
+    enew
+
+    let l:out = execute('ReviewCommentAdd')
+    call assert_match('No file name', l:out)
+    call assert_false(filereadable(s:store_path_for_cwd(l:env.dir)))
+  finally
+    call s:cleanup_env(l:env)
+  endtry
+endfunction
+
+function! s:test_add_reports_save_failure() abort
+  let l:env = s:new_env()
+  try
+    call s:reset_editor()
+    execute 'cd ' . fnameescape(l:env.dir)
+    call s:edit_file(l:env.dir . '/save_fail.txt', ['line1'])
+
+    let l:store = s:store_path_for_cwd(l:env.dir)
+    call mkdir(l:store, 'p')
+
+    call cursor(1, 1)
+    call feedkeys('cannot persist' . "\<CR>", 'tn')
+    let l:out = execute('call vim_review#add()')
+
+    call assert_match('failed to save', tolower(l:out))
+    call assert_equal(1, isdirectory(l:store))
+    call assert_false(filereadable(l:store))
+
+    let l:cur = execute('ReviewCommentCur')
+    call assert_match('cannot persist', l:cur)
+  finally
+    call s:cleanup_env(l:env)
+  endtry
+endfunction
+
 function! VimReviewTestsRun() abort
   let v:errors = []
   call s:test_commands_exist()
@@ -262,4 +302,6 @@ function! VimReviewTestsRun() abort
   call s:test_del_removes_comment()
   call s:test_list_sorted_by_file_and_line()
   call s:test_sync_store_switch_has_no_empty_writes()
+  call s:test_add_rejects_unnamed_buffer()
+  call s:test_add_reports_save_failure()
 endfunction

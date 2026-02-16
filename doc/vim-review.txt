@@ -15,6 +15,10 @@ Default mappings:
   <leader>cs  current line
   <leader>cl  list
 
+Notes:
+  :ReviewCommentAdd/:ReviewCommentAck/:ReviewCommentDel require a named file buffer.
+  If saving the comment store fails, changes stay in memory and vim-review shows an error.
+
 Storage:
   If in a git repo:
     <git-root>/.vim_review/<commit-sha>-comments.json   (if json_encode exists)

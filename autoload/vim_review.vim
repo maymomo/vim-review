@@ -9,6 +9,17 @@ sign define ReviewComment text=💬 texthl=WarningMsg
 let s:db = {}            " { abs_file: { lnum: text } }
 let s:active_store = ''  " current store file path
 let s:dirty = 0          " in-memory changes not saved yet
+let s:placed_sign_ids = {} " { bufnr: { sign_id: 1 } }
+
+function! s:store_ext() abort
+  return exists('*json_encode') ? 'json' : 'vim'
+endfunction
+
+function! s:echo_error(msg) abort
+  echohl ErrorMsg
+  echo a:msg
+  echohl None
+endfunction
 
 function! s:comment_text(item) abort
   if type(a:item) == type({})
@@ -22,11 +33,19 @@ function! s:comment_acked(item) abort
 endfunction
 
 function! s:absfile() abort
-  return fnamemodify(expand('%:p'), ':p')
+  let l:path = expand('%:p')
+  if empty(l:path)
+    return ''
+  endif
+  return fnamemodify(l:path, ':p')
 endfunction
 
 function! s:bufdir() abort
-  return fnamemodify(expand('%:p:h'), ':p')
+  let l:file = s:absfile()
+  if empty(l:file)
+    return ''
+  endif
+  return fnamemodify(l:file, ':h')
 endfunction
 
 function! s:systemlist(cmd) abort
@@ -47,30 +66,42 @@ function! s:git_sha(dir) abort
 endfunction
 
 function! s:store_path() abort
+  let l:ext = s:store_ext()
   let l:dir  = s:bufdir()
+  if empty(l:dir)
+    return getcwd() . '/.vim_review_comments.' . l:ext
+  endif
   let l:root = s:git_root(l:dir)
   let l:sha  = s:git_sha(l:dir)
 
   if !empty(l:root) && !empty(l:sha)
-    let l:ext = exists('*json_encode') ? 'json' : 'vim'
     return l:root . '/.vim_review/' . l:sha . '-comments.' . l:ext
   endif
 
-  let l:ext = exists('*json_encode') ? 'json' : 'vim'
   return getcwd() . '/.vim_review_comments.' . l:ext
 endfunction
 
 function! s:save_db_to(path) abort
   let l:dir = fnamemodify(a:path, ':h')
   if !isdirectory(l:dir)
-    call mkdir(l:dir, 'p')
+    try
+      call mkdir(l:dir, 'p')
+    catch
+      return 0
+    endtry
+    if !isdirectory(l:dir)
+      return 0
+    endif
   endif
 
-  if exists('*json_encode')
-    call writefile([json_encode(s:db)], a:path)
-  else
-    call writefile([string(s:db)], a:path)
-  endif
+  let l:lines = exists('*json_encode') ? [json_encode(s:db)] : [string(s:db)]
+  try
+    if writefile(l:lines, a:path) != 0
+      return 0
+    endif
+  catch
+    return 0
+  endtry
 
   if fnamemodify(l:dir, ':t') ==# '.vim_review'
     let l:ext = fnamemodify(a:path, ':e')
@@ -78,14 +109,23 @@ function! s:save_db_to(path) abort
     if has('unix')
       call system('ln -sfn ' . shellescape(a:path) . ' ' . shellescape(l:latest) . ' 2>/dev/null')
       if v:shell_error
-        call writefile(readfile(a:path), l:latest)
+        try
+          call writefile(l:lines, l:latest)
+        catch
+          " Ignore latest pointer failures; canonical store already wrote.
+        endtry
       endif
     else
-      call writefile(readfile(a:path), l:latest)
+      try
+        call writefile(l:lines, l:latest)
+      catch
+        " Ignore latest pointer failures; canonical store already wrote.
+      endtry
     endif
   endif
 
   let s:dirty = 0
+  return 1
 endfunction
 
 function! s:load_db_from(path) abort
@@ -133,8 +173,9 @@ function! vim_review#sync_store() abort
   endif
 
   if l:new !=# s:active_store
-    if s:dirty
-      call s:save_db_to(s:active_store)
+    if s:dirty && !s:save_db_to(s:active_store)
+      call s:echo_error('vim-review: failed to save comment store: ' . s:active_store)
+      return
     endif
     let s:active_store = l:new
     call s:load_db_from(s:active_store)
@@ -142,7 +183,12 @@ function! vim_review#sync_store() abort
 endfunction
 
 function! s:place_sign(buf, lnum) abort
-  execute 'sign place ' . (a:buf*100000 + a:lnum) . ' line=' . a:lnum . ' name=ReviewComment buffer=' . a:buf
+  let l:id = a:buf*100000 + a:lnum
+  execute 'sign place ' . l:id . ' line=' . a:lnum . ' name=ReviewComment buffer=' . a:buf
+  if !has_key(s:placed_sign_ids, a:buf)
+    let s:placed_sign_ids[a:buf] = {}
+  endif
+  let s:placed_sign_ids[a:buf][string(l:id)] = 1
 endfunction
 
 function! s:unplace_review_signs(buf) abort
@@ -155,11 +201,16 @@ function! s:unplace_review_signs(buf) abort
         endif
       endfor
     endif
+    let s:placed_sign_ids[a:buf] = {}
     return
   endif
 
-  " Legacy fallback for very old Vim builds without sign_getplaced().
-  execute 'sign unplace * buffer=' . a:buf
+  if has_key(s:placed_sign_ids, a:buf)
+    for l:id in keys(s:placed_sign_ids[a:buf])
+      execute 'sign unplace ' . l:id . ' buffer=' . a:buf
+    endfor
+  endif
+  let s:placed_sign_ids[a:buf] = {}
 endfunction
 
 function! vim_review#refresh_signs() abort
@@ -197,8 +248,11 @@ function! vim_review#add() abort
   let s:db[l:file][l:lnum] = l:text
   call s:place_sign(bufnr('%'), str2nr(l:lnum))
   let s:dirty = 1
-  call s:save_db_to(s:active_store)
-  echo "Comment saved ✔"
+  if s:save_db_to(s:active_store)
+    echo "Comment saved ✔"
+  else
+    call s:echo_error('vim-review: failed to save comment store')
+  endif
 endfunction
 
 function! vim_review#del() abort
@@ -210,9 +264,12 @@ function! vim_review#del() abort
   if has_key(s:db, l:file) && has_key(s:db[l:file], l:lnum)
     call remove(s:db[l:file], l:lnum)
     let s:dirty = 1
-    call s:save_db_to(s:active_store)
+    if s:save_db_to(s:active_store)
+      echo "Comment deleted"
+    else
+      call s:echo_error('vim-review: comment deleted but not saved')
+    endif
     call vim_review#refresh_signs()
-    echo "Comment deleted"
   else
     echo "No comment on this line"
   endif
@@ -241,9 +298,12 @@ function! vim_review#ack() abort
     let l:text = s:comment_text(s:db[l:file][l:lnum])
     let s:db[l:file][l:lnum] = {'text': l:text, 'ack': 1, 'ai': 'ignore this comment.'}
     let s:dirty = 1
-    call s:save_db_to(s:active_store)
+    if s:save_db_to(s:active_store)
+      echo "Comment acknowledged"
+    else
+      call s:echo_error('vim-review: comment acknowledged but not saved')
+    endif
     call vim_review#refresh_signs()
-    echo "Comment acknowledged"
   else
     echo "No comment on this line"
   endif
